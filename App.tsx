@@ -3,10 +3,13 @@ import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AudioPlayerProvider } from './src/contexts/AudioPlayerContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import type { MainTabParamList, RootStackParamList } from './src/navigation/types';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { DrillsScreen } from './src/screens/DrillsScreen';
 import { EpisodeDetailScreen } from './src/screens/EpisodeDetailScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -90,15 +93,55 @@ function MainTabs() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AudioPlayerProvider>
+      <AuthProvider>
         <StatusBar style="dark" />
-        <NavigationContainer theme={navigationTheme}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="EpisodeDetail" component={EpisodeDetailScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </AudioPlayerProvider>
+        <AppContent />
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
+
+function AppContent() {
+  const { initializing, session } = useAuth();
+
+  if (initializing) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={colors.navy} size="large" />
+        <Text style={styles.loadingText}>Decrypting session...</Text>
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
+  }
+
+  return (
+    <AudioPlayerProvider>
+      <NavigationContainer theme={navigationTheme}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+          <Stack.Screen name="EpisodeDetail" component={EpisodeDetailScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AudioPlayerProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  loading: {
+    alignItems: 'center',
+    backgroundColor: colors.cream,
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center'
+  },
+  loadingText: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase'
+  }
+});

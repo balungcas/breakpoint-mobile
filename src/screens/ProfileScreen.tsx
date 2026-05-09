@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import { ChunkyButton } from '../components/ChunkyButton';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { PopCard } from '../components/PopCard';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
-import { useGuestProgress } from '../hooks/useAsyncStore';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../services/supabaseClient';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
 import { getAgentRank } from '../utils/ranks';
@@ -18,39 +20,150 @@ const badges = [
   { id: 'dossier-master', label: 'Dossier Master', hint: 'Earn 1000 XP', icon: 'trophy', color: colors.cyan }
 ] as const;
 
+type ProfileRow = {
+  display_name: string | null;
+  xp: number;
+  completed_cases: string[] | null;
+  avatar_url: string | null;
+};
+
 export function ProfileScreen() {
-  const progress = useGuestProgress();
-  const rankProgress = getAgentRank(progress.xp);
+  const { signOut, user } = useAuth();
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const fallbackName = user?.email?.split('@')[0] || 'Agent';
+  const name = profile?.display_name || fallbackName;
+  const xp = profile?.xp ?? 0;
+  const completedCases = useMemo(() => profile?.completed_cases ?? [], [profile?.completed_cases]);
+  const rankProgress = getAgentRank(xp);
   const { rank, next } = rankProgress;
-  const cases = progress.completedCases.length;
+  const cases = completedCases.length;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      if (!user) return;
+
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name,xp,completed_cases,avatar_url')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        Alert.alert('Profile load failed', error.message);
+        setProfile({
+          display_name: fallbackName,
+          xp: 0,
+          completed_cases: [],
+          avatar_url: null
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        setProfile(data as ProfileRow);
+        setLoading(false);
+        return;
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('profiles')
+        .upsert(
+          {
+            user_id: user.id,
+            display_name: fallbackName
+          },
+          { onConflict: 'user_id' }
+        )
+        .select('display_name,xp,completed_cases,avatar_url')
+        .single();
+
+      if (cancelled) return;
+
+      if (insertError) {
+        Alert.alert('Profile setup failed', insertError.message);
+      }
+
+      setProfile(
+        inserted
+          ? (inserted as ProfileRow)
+          : {
+              display_name: fallbackName,
+              xp: 0,
+              completed_cases: [],
+              avatar_url: null
+            }
+      );
+      setLoading(false);
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fallbackName, user]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign out.';
+      Alert.alert('Sign out failed', message);
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Screen>
+        <ConsoleHeader icon="person" eyebrow="Authenticated Agent" title="YOUR DOSSIER" color={colors.yellow} />
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.navy} />
+          <Text style={styles.loadingText}>Loading dossier...</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
-      <ConsoleHeader icon="person" eyebrow="Guest Agent" title="YOUR DOSSIER" color={colors.yellow} />
+      <ConsoleHeader icon="person" eyebrow={`Welcome, Agent ${name}`} title="YOUR DOSSIER" color={colors.yellow} />
 
       <PopCard backgroundColor={rank.bg} style={styles.idCard}>
         <View style={[styles.rankBlob, { backgroundColor: rank.accent }]} />
         <View style={styles.classifiedRow}>
           <Text style={styles.classified}>★ Classified</Text>
-          <Text style={styles.idNumber}>ID #GUEST</Text>
+          <Text style={styles.idNumber}>ID #{user?.id.slice(0, 6).toUpperCase()}</Text>
         </View>
         <View style={styles.agentRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>G</Text>
+            <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
             <View style={styles.level}>
               <Text style={styles.levelText}>{rank.level}</Text>
             </View>
           </View>
           <View style={styles.agentCopy}>
             <Text style={[styles.agentMeta, { color: rank.ink }]}>Agent</Text>
-            <Text style={[styles.agentName, { color: rank.ink }]}>GUEST</Text>
+            <Text style={[styles.agentName, { color: rank.ink }]} numberOfLines={1}>
+              {name.toUpperCase()}
+            </Text>
             <Text style={[styles.agentMeta, { color: rank.ink }]}>Rank</Text>
             <Text style={[styles.rankTitle, { color: rank.ink }]}>{rank.title.toUpperCase()}</Text>
           </View>
         </View>
         <View>
           <View style={styles.xpRow}>
-            <Text style={[styles.agentMeta, { color: rank.ink }]}>{progress.xp.toLocaleString()} XP</Text>
+            <Text style={[styles.agentMeta, { color: rank.ink }]}>{xp.toLocaleString()} XP</Text>
             <Text style={[styles.agentMeta, { color: rank.ink }]}>
               {next ? `${rankProgress.xpToNext} TO ${next.title.toUpperCase()}` : 'MAX RANK'}
             </Text>
@@ -77,27 +190,10 @@ export function ProfileScreen() {
         <View style={styles.statGrid}>
           <MissionStat label="Cases Solved" value={cases} icon="folder" backgroundColor={colors.orange} color={colors.white} />
           <MissionStat label="Drills Completed" value={0} icon="locate" backgroundColor={colors.lime} />
-          <MissionStat label="Total XP" value={progress.xp} icon="sparkles" backgroundColor={colors.cyan} />
+          <MissionStat label="Total XP" value={xp} icon="sparkles" backgroundColor={colors.cyan} />
           <MissionStat label="Clearance Lvl" value={rank.level} icon="shield-checkmark" backgroundColor={colors.navy} color={colors.yellow} />
         </View>
       </View>
-
-      <PopCard backgroundColor={colors.yellow}>
-        <View style={styles.cloudRow}>
-          <View style={styles.cloudIcon}>
-            <Ionicons name="cloud-upload" size={24} color={colors.navy} />
-          </View>
-          <View style={styles.cloudCopy}>
-            <Text style={styles.cloudKicker}>Do not lose your dossier</Text>
-            <Text style={styles.cloudTitle}>SAVE PROGRESS TO CLOUD</Text>
-          </View>
-        </View>
-        <ChunkyButton
-          label="Auth coming next"
-          backgroundColor={colors.blue}
-          onPress={() => undefined}
-        />
-      </PopCard>
 
       <View style={styles.section}>
         <SectionHeader title="DOSSIER TROPHIES" color={colors.orange} />
@@ -106,8 +202,8 @@ export function ProfileScreen() {
             const unlocked =
               (badge.id === 'first-clue' && cases >= 1) ||
               (badge.id === 'phish-catcher' && cases >= 3) ||
-              (badge.id === 'vibe-checker' && progress.xp >= 200) ||
-              (badge.id === 'dossier-master' && progress.xp >= 1000);
+              (badge.id === 'vibe-checker' && xp >= 200) ||
+              (badge.id === 'dossier-master' && xp >= 1000);
 
             return (
               <View key={badge.id} style={[styles.badgeCard, !unlocked && styles.lockedBadge]}>
@@ -126,6 +222,14 @@ export function ProfileScreen() {
           })}
         </View>
       </View>
+
+      <ChunkyButton
+        label={signingOut ? 'Signing out...' : 'Sign Out'}
+        icon="log-out"
+        backgroundColor={colors.navy}
+        onPress={handleSignOut}
+        disabled={signingOut}
+      />
     </Screen>
   );
 }
@@ -155,6 +259,18 @@ function MissionStat({
 }
 
 const styles = StyleSheet.create({
+  loading: {
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xxxl
+  },
+  loadingText: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase'
+  },
   idCard: {
     overflow: 'hidden'
   },

@@ -1,32 +1,18 @@
 import { fallbackDossiers, fallbackDrills, fallbackEpisodes, fallbackFlashcards } from '../data/fallback';
 import type { Dossier, Drill, Episode, Flashcard, Interaction } from '../types/podcast';
-
-const defaultSupabaseUrl = 'https://adpvlipxeeyadeanzvuh.supabase.co';
-const defaultPublishableKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkcHZsaXB4ZWV5YWRlYW56dnVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4ODQ0NjYsImV4cCI6MjA5MzQ2MDQ2Nn0._M1qFi0ETtWnhzml9A9z_8VtX30fHbRZ6_Xm-CuyXHQ';
-
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ??
-  process.env.VITE_SUPABASE_URL ??
-  process.env.SUPABASE_URL ??
-  defaultSupabaseUrl;
-const publishableKey =
-  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.SUPABASE_PUBLISHABLE_KEY ??
-  defaultPublishableKey;
+import { supabasePublishableKey, supabaseUrl } from './supabaseConfig';
 
 const restBase = supabaseUrl ? `${supabaseUrl.replace(/\/$/, '')}/rest/v1` : '';
 
 async function rest<T>(path: string): Promise<T> {
-  if (!restBase || !publishableKey) {
+  if (!restBase || !supabasePublishableKey) {
     throw new Error('Missing Supabase REST configuration');
   }
 
   const response = await fetch(`${restBase}/${path}`, {
     headers: {
-      apikey: publishableKey,
-      Authorization: `Bearer ${publishableKey}`,
+      apikey: supabasePublishableKey,
+      Authorization: `Bearer ${supabasePublishableKey}`,
       Accept: 'application/json'
     }
   });

@@ -11,6 +11,8 @@ React Native mobile app for Breakpoint, built with Expo and TypeScript. This app
 - Vault with dossiers, mission unlock flow, mission quiz modal, and local completion tracking
 - Profile dossier with guest rank, mission log, trophy badges, and cloud-save prompt
 - Supabase REST fetchers for the same public tables used by the web app, with local fallback data for development
+- Supabase Auth gate with email/password sign in and sign up
+- Secure session persistence with Expo SecureStore for native JWT storage and AsyncStorage fallback for web
 
 ## Getting started
 
@@ -39,6 +41,10 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
 The mobile fetcher also accepts the web app names (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`). If Supabase is unreachable, the app uses a small local fallback catalog so the UI remains runnable.
+
+## Authentication
+
+The app uses `supabase.auth.signInWithPassword` for standard email/password login and `supabase.auth.signUp` for account creation. On native platforms, Supabase session tokens are persisted through `expo-secure-store`; web falls back to AsyncStorage because SecureStore is native-only.
 
 ## Validation
 
