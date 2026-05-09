@@ -21,6 +21,14 @@ npm run start
 
 Then open the app in Expo Go, an iOS simulator, or an Android emulator.
 
+When running from a cloud VM or any machine that is not on the same local network as your phone, use tunnel mode:
+
+```bash
+npm run start:tunnel
+```
+
+Expo Go must scan the tunnel QR / `exp.direct` URL. The normal `localhost` web URL is only reachable inside the machine that is running Metro.
+
 ## Supabase configuration
 
 The app is preconfigured with the same Supabase project and publishable anon key used by the web app. For local overrides, copy `.env.example` to `.env` and set the Expo public names:
