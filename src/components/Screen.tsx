@@ -65,7 +65,7 @@ export function Screen({
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: colors.cream
   },
   content: {
     paddingHorizontal: spacing.lg,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.cream,
     paddingHorizontal: spacing.lg
   }
 });
