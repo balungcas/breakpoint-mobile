@@ -2,15 +2,18 @@ import type { Session, User } from '@supabase/supabase-js';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { clearGuestProgress, readGuestProgress } from '../services/guestProgress';
 import { supabase } from '../services/supabaseClient';
 
 type AuthContextValue = {
   initializing: boolean;
   session: Session | null;
   user: User | null;
+  syncVersion: number;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
+  syncGuestProgress: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -18,6 +21,28 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren) {
   const [initializing, setInitializing] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [lastSyncedUserId, setLastSyncedUserId] = useState<string | null>(null);
+  const [syncVersion, setSyncVersion] = useState(0);
+
+  const syncGuestProgress = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const activeUser = data.session?.user;
+    if (!activeUser) return;
+
+    const guest = await readGuestProgress();
+    if (guest.xp <= 0 && guest.completedCases.length === 0) return;
+
+    const { error } = await supabase.rpc('merge_guest_progress', {
+      _xp: guest.xp,
+      _cases: guest.completedCases
+    });
+
+    if (error) throw error;
+
+    await clearGuestProgress();
+    setLastSyncedUserId(activeUser.id);
+    setSyncVersion((version) => version + 1);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +66,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId || userId === lastSyncedUserId) return;
+
+    syncGuestProgress().catch((error) => {
+      console.warn('[Auth] Failed to sync guest progress:', error);
+    });
+  }, [lastSyncedUserId, session?.user.id, syncGuestProgress]);
 
   useEffect(() => {
     if (AppState.currentState === 'active') {
@@ -101,11 +135,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       initializing,
       session,
       user: session?.user ?? null,
+      syncVersion,
       signIn,
       signUp,
-      signOut
+      signOut,
+      syncGuestProgress
     }),
-    [initializing, session, signIn, signOut, signUp]
+    [initializing, session, signIn, signOut, signUp, syncGuestProgress, syncVersion]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

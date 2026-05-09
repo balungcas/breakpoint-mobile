@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
+import { completedCasesKey, guestXpKey } from '../services/guestProgress';
+
 export function useStoredStringArray(key: string) {
   const [items, setItems] = useState<string[]>([]);
 
@@ -37,10 +39,10 @@ export function useStoredStringArray(key: string) {
 
 export function useGuestProgress() {
   const [xp, setXp] = useState(0);
-  const completed = useStoredStringArray('completedCases');
+  const completed = useStoredStringArray(completedCasesKey);
 
   useEffect(() => {
-    AsyncStorage.getItem('guestXP')
+    AsyncStorage.getItem(guestXpKey)
       .then((value) => setXp(value ? Number.parseInt(value, 10) || 0 : 0))
       .catch(() => undefined);
   }, []);
@@ -48,7 +50,7 @@ export function useGuestProgress() {
   const addXp = useCallback(async (amount: number) => {
     setXp((current) => {
       const next = current + amount;
-      AsyncStorage.setItem('guestXP', String(next)).catch(() => undefined);
+      AsyncStorage.setItem(guestXpKey, String(next)).catch(() => undefined);
       return next;
     });
   }, []);
@@ -66,6 +68,11 @@ export function useGuestProgress() {
     xp,
     completedCases: completed.items,
     addXp,
-    completeCase
+    completeCase,
+    clear: async () => {
+      setXp(0);
+      await AsyncStorage.removeItem(guestXpKey);
+      await completed.setItems([]);
+    }
   };
 }

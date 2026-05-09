@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, View } from 'react-native';
 
+import { AuthScreen } from './AuthScreen';
 import { ChunkyButton } from '../components/ChunkyButton';
 import { ConsoleHeader } from '../components/ConsoleHeader';
 import { PopCard } from '../components/PopCard';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useGuestProgress } from '../hooks/useAsyncStore';
 import { supabase } from '../services/supabaseClient';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
@@ -28,14 +30,20 @@ type ProfileRow = {
 };
 
 export function ProfileScreen() {
-  const { signOut, user } = useAuth();
+  const { signOut, syncVersion, user } = useAuth();
+  const guestProgress = useGuestProgress();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const fallbackName = user?.email?.split('@')[0] || 'Agent';
-  const name = profile?.display_name || fallbackName;
-  const xp = profile?.xp ?? 0;
-  const completedCases = useMemo(() => profile?.completed_cases ?? [], [profile?.completed_cases]);
+  const isAuthenticated = !!user;
+  const name = isAuthenticated ? profile?.display_name || fallbackName : 'Guest';
+  const xp = isAuthenticated ? profile?.xp ?? 0 : guestProgress.xp;
+  const completedCases = useMemo(
+    () => (isAuthenticated ? profile?.completed_cases ?? [] : guestProgress.completedCases),
+    [guestProgress.completedCases, isAuthenticated, profile?.completed_cases]
+  );
   const rankProgress = getAgentRank(xp);
   const { rank, next } = rankProgress;
   const cases = completedCases.length;
@@ -44,7 +52,11 @@ export function ProfileScreen() {
     let cancelled = false;
 
     async function loadProfile() {
-      if (!user) return;
+      if (!user) {
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       const { data, error } = await supabase
@@ -109,7 +121,7 @@ export function ProfileScreen() {
     return () => {
       cancelled = true;
     };
-  }, [fallbackName, user]);
+  }, [fallbackName, syncVersion, user]);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -123,7 +135,7 @@ export function ProfileScreen() {
     }
   }
 
-  if (loading) {
+  if (isAuthenticated && loading) {
     return (
       <Screen>
         <ConsoleHeader icon="person" eyebrow="Authenticated Agent" title="YOUR DOSSIER" color={colors.yellow} />
@@ -137,13 +149,20 @@ export function ProfileScreen() {
 
   return (
     <Screen>
-      <ConsoleHeader icon="person" eyebrow={`Welcome, Agent ${name}`} title="YOUR DOSSIER" color={colors.yellow} />
+      <ConsoleHeader
+        icon="person"
+        eyebrow={isAuthenticated ? `Welcome, Agent ${name}` : 'Guest Agent'}
+        title="YOUR DOSSIER"
+        color={colors.yellow}
+      />
 
       <PopCard backgroundColor={rank.bg} style={styles.idCard}>
         <View style={[styles.rankBlob, { backgroundColor: rank.accent }]} />
         <View style={styles.classifiedRow}>
           <Text style={styles.classified}>★ Classified</Text>
-          <Text style={styles.idNumber}>ID #{user?.id.slice(0, 6).toUpperCase()}</Text>
+          <Text style={styles.idNumber}>
+            ID #{isAuthenticated ? user?.id.slice(0, 6).toUpperCase() : 'GUEST'}
+          </Text>
         </View>
         <View style={styles.agentRow}>
           <View style={styles.avatar}>
@@ -195,6 +214,29 @@ export function ProfileScreen() {
         </View>
       </View>
 
+      {!isAuthenticated ? (
+        <PopCard backgroundColor={colors.yellow}>
+          <View style={styles.cloudRow}>
+            <View style={styles.cloudIcon}>
+              <Ionicons name="cloud-upload" size={24} color={colors.navy} />
+            </View>
+            <View style={styles.cloudCopy}>
+              <Text style={styles.cloudKicker}>Do not lose your dossier</Text>
+              <Text style={styles.cloudTitle}>SAVE PROGRESS TO CLOUD</Text>
+            </View>
+          </View>
+          <Text style={styles.cloudBody}>
+            You are playing as a guest. Create an account or sign in to sync {xp.toLocaleString()} XP and {cases} solved cases.
+          </Text>
+          <ChunkyButton
+            label="Save Progress"
+            icon="cloud-upload"
+            backgroundColor={colors.blue}
+            onPress={() => setAuthOpen(true)}
+          />
+        </PopCard>
+      ) : null}
+
       <View style={styles.section}>
         <SectionHeader title="DOSSIER TROPHIES" color={colors.orange} />
         <View style={styles.badgeGrid}>
@@ -223,13 +265,22 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      <ChunkyButton
-        label={signingOut ? 'Signing out...' : 'Sign Out'}
-        icon="log-out"
-        backgroundColor={colors.navy}
-        onPress={handleSignOut}
-        disabled={signingOut}
-      />
+      {isAuthenticated ? (
+        <ChunkyButton
+          label={signingOut ? 'Signing out...' : 'Sign Out'}
+          icon="log-out"
+          backgroundColor={colors.navy}
+          onPress={handleSignOut}
+          disabled={signingOut}
+        />
+      ) : null}
+
+      <Modal visible={authOpen} animationType="slide" presentationStyle="fullScreen">
+        <AuthScreen
+          onAuthenticated={() => setAuthOpen(false)}
+          onCancel={() => setAuthOpen(false)}
+        />
+      </Modal>
     </Screen>
   );
 }
@@ -452,6 +503,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '900',
     lineHeight: 26
+  },
+  cloudBody: {
+    color: colors.purple,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 20
   },
   badgeGrid: {
     flexDirection: 'row',

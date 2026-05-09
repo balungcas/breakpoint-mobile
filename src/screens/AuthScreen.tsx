@@ -19,7 +19,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
 
-export function AuthScreen() {
+type AuthScreenProps = {
+  onAuthenticated?: () => void;
+  onCancel?: () => void;
+};
+
+export function AuthScreen({ onAuthenticated, onCancel }: AuthScreenProps) {
   const insets = useSafeAreaInsets();
   const auth = useAuth();
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
@@ -51,9 +56,14 @@ export function AuthScreen() {
             'Your account was created. Confirm your email, then sign in.'
           );
           setMode('signIn');
+        } else {
+          await auth.syncGuestProgress();
+          onAuthenticated?.();
         }
       } else {
         await auth.signIn(email, password);
+        await auth.syncGuestProgress();
+        onAuthenticated?.();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed.';
@@ -69,6 +79,11 @@ export function AuthScreen() {
       style={[styles.screen, { paddingTop: insets.top + spacing.xl }]}
     >
       <View style={styles.hero}>
+        {onCancel ? (
+          <Pressable accessibilityRole="button" onPress={onCancel} style={styles.closeButton}>
+            <Ionicons name="close" size={18} color={colors.navy} />
+          </Pressable>
+        ) : null}
         <View style={styles.logo}>
           <Ionicons name="radio" size={24} color={colors.white} />
         </View>
@@ -160,7 +175,21 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    gap: spacing.sm
+    gap: spacing.sm,
+    position: 'relative'
+  },
+  closeButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.navy,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    height: 40,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    top: -spacing.md,
+    width: 40
   },
   logo: {
     alignItems: 'center',
