@@ -31,6 +31,10 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
+    "postcss": "^8.5.14",
     "typescript": "~5.9.3"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }

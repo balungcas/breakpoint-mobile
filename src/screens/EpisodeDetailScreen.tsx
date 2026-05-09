@@ -35,12 +35,13 @@ export function EpisodeDetailScreen({ navigation, route }: EpisodeDetailProps) {
     );
   }
 
-  const episodeUrl = `${podcastProfile.website}?episode=${episode.id}`;
+  const currentEpisode = episode;
+  const episodeUrl = `${podcastProfile.website}?episode=${currentEpisode.id}`;
 
   async function shareEpisode() {
     await Share.share({
-      title: episode.title,
-      message: `${episode.title}\n${episode.subtitle}\n${episodeUrl}`
+      title: currentEpisode.title,
+      message: `${currentEpisode.title}\n${currentEpisode.subtitle}\n${episodeUrl}`
     });
   }
 
