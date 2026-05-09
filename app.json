@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Breakpoint Podcast",
+    "slug": "breakpoint-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "breakpoint",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.breakpointpodcast.mobile"
+    },
+    "android": {
+      "package": "com.breakpointpodcast.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#101820"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
