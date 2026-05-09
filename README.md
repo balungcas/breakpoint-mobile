@@ -23,14 +23,14 @@ Then open the app in Expo Go, an iOS simulator, or an Android emulator.
 
 ## Supabase configuration
 
-Set these variables to point the mobile app at the same Supabase project as the web app:
+The app is preconfigured with the same Supabase project and publishable anon key used by the web app. For local overrides, copy `.env.example` to `.env` and set the Expo public names:
 
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-If they are not set, the app uses a small local fallback catalog so the UI remains runnable.
+The mobile fetcher also accepts the web app names (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`). If Supabase is unreachable, the app uses a small local fallback catalog so the UI remains runnable.
 
 ## Validation
 
