@@ -21,49 +21,50 @@ export function CaseCard({
   const palette = pickPalette(episode.id);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open case ${episode.caseNumber}: ${episode.title}`}
-      onPress={() => onPress(episode)}
-      style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}
-    >
-      <View style={styles.shadow}>
-        <View style={[styles.art, { backgroundColor: palette.bg }]}>
-          <View style={[styles.blob, { backgroundColor: palette.meta }]} />
-          {onToggleBookmark ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={bookmarked ? 'Remove bookmark' : 'Bookmark episode'}
-              onPress={(event) => {
-                event.stopPropagation();
-                onToggleBookmark(episode);
-              }}
-              style={styles.bookmark}
-            >
-              <Ionicons
-                name={bookmarked ? 'bookmark' : 'bookmark-outline'}
-                size={17}
-                color={bookmarked ? colors.orange : colors.navy}
-              />
-            </Pressable>
-          ) : null}
-          <View style={styles.play}>
-            <Ionicons name="play" size={14} color={colors.blue} />
+    <View style={styles.wrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open case ${episode.caseNumber}: ${episode.title}`}
+        onPress={() => onPress(episode)}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <View style={styles.shadow}>
+          <View style={[styles.art, { backgroundColor: palette.bg }]}>
+            <View style={[styles.blob, { backgroundColor: palette.meta }]} />
+            <View style={styles.play}>
+              <Ionicons name="play" size={14} color={colors.blue} />
+            </View>
           </View>
         </View>
-      </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {episode.title}
-      </Text>
-      <Text style={styles.meta} numberOfLines={1}>
-        {episode.category} · {episode.duration}
-      </Text>
-    </Pressable>
+        <Text style={styles.title} numberOfLines={2}>
+          {episode.title}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {episode.category} · {episode.duration}
+        </Text>
+      </Pressable>
+
+      {onToggleBookmark ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={bookmarked ? 'Remove bookmark' : 'Bookmark episode'}
+          onPress={() => onToggleBookmark(episode)}
+          style={styles.bookmark}
+        >
+          <Ionicons
+            name={bookmarked ? 'bookmark' : 'bookmark-outline'}
+            size={17}
+            color={bookmarked ? colors.orange : colors.navy}
+          />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
+    position: 'relative',
     width: 168
   },
   pressed: {

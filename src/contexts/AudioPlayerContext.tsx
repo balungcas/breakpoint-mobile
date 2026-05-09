@@ -1,4 +1,5 @@
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
+import type { AudioPlayer, AudioStatus } from 'expo-audio';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import type { Episode, Interaction } from '../types/podcast';
@@ -19,7 +20,8 @@ type AudioContextValue = {
 const AudioPlayerContext = createContext<AudioContextValue | null>(null);
 
 export function AudioPlayerProvider({ children }: PropsWithChildren) {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const subscriptionRef = useRef<{ remove: () => void } | null>(null);
   const currentRef = useRef<Track | null>(null);
   const triggeredRef = useRef<Set<string>>(new Set());
   const [current, setCurrent] = useState<Track | null>(null);
@@ -27,10 +29,13 @@ export function AudioPlayerProvider({ children }: PropsWithChildren) {
   const [progress, setProgress] = useState(0);
   const [pendingInteraction, setPendingInteraction] = useState<Interaction | null>(null);
 
-  const unload = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
+  const unload = useCallback(() => {
+    subscriptionRef.current?.remove();
+    subscriptionRef.current = null;
+    if (playerRef.current) {
+      playerRef.current.pause();
+      playerRef.current.remove();
+      playerRef.current = null;
     }
   }, []);
 
@@ -40,31 +45,31 @@ export function AudioPlayerProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     return () => {
-      unload().catch(() => undefined);
+      unload();
     };
   }, [unload]);
 
   const handleStatus = useCallback(
-    async (status: AVPlaybackStatus) => {
+    (status: AudioStatus) => {
       if (!status.isLoaded) return;
 
-      setIsPlaying(status.isPlaying);
-      if (status.durationMillis) {
-        setProgress((status.positionMillis / status.durationMillis) * 100);
+      setIsPlaying(status.playing);
+      if (status.duration) {
+        setProgress((status.currentTime / status.duration) * 100);
       }
 
       const active = currentRef.current;
-      if (!active?.interactions.length || !status.positionMillis) return;
+      if (!active?.interactions.length || !status.currentTime) return;
 
-      const currentSecond = Math.floor(status.positionMillis / 1000);
+      const currentSecond = Math.floor(status.currentTime);
       const interaction = active.interactions.find((item) => {
         const key = `${active.id}:${item.id}`;
         return !triggeredRef.current.has(key) && currentSecond >= item.timestamp;
       });
 
-      if (interaction && soundRef.current) {
+      if (interaction && playerRef.current) {
         triggeredRef.current.add(`${active.id}:${interaction.id}`);
-        await soundRef.current.pauseAsync();
+        playerRef.current.pause();
         setPendingInteraction(interaction);
       }
     },
@@ -73,46 +78,43 @@ export function AudioPlayerProvider({ children }: PropsWithChildren) {
 
   const playTrack = useCallback(
     async (track: Track) => {
-      if (current?.id === track.id && soundRef.current) {
-        const status = await soundRef.current.getStatusAsync();
-        if (status.isLoaded && status.isPlaying) {
-          await soundRef.current.pauseAsync();
+      if (current?.id === track.id && playerRef.current) {
+        if (playerRef.current.playing) {
+          playerRef.current.pause();
         } else {
-          await soundRef.current.playAsync();
+          playerRef.current.play();
         }
         return;
       }
 
-      await unload();
+      unload();
       setCurrent(track);
       setProgress(0);
+      setIsPlaying(false);
       triggeredRef.current = new Set();
 
       if (!track.audioUrl) return;
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.audioUrl },
-        { shouldPlay: true },
-        handleStatus
-      );
-      soundRef.current = sound;
+      const player = createAudioPlayer({ uri: track.audioUrl }, { updateInterval: 500 });
+      subscriptionRef.current = player.addListener('playbackStatusUpdate', handleStatus);
+      playerRef.current = player;
+      player.play();
     },
     [current?.id, handleStatus, unload]
   );
 
   const toggle = useCallback(async () => {
-    if (!soundRef.current) return;
-    const status = await soundRef.current.getStatusAsync();
-    if (status.isLoaded && status.isPlaying) {
-      await soundRef.current.pauseAsync();
+    if (!playerRef.current) return;
+    if (playerRef.current.playing) {
+      playerRef.current.pause();
     } else {
-      await soundRef.current.playAsync();
+      playerRef.current.play();
     }
   }, []);
 
   const resumeFromInteraction = useCallback(async () => {
     setPendingInteraction(null);
-    await soundRef.current?.playAsync();
+    playerRef.current?.play();
   }, []);
 
   return (
